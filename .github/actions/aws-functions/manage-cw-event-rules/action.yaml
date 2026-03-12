@@ -1,5 +1,5 @@
-name: Disable/Enable Pollers
-description: "Action to disable or enable the DRS pollers."
+name: Disable/Enable CloudWatch Event Rules
+description: "Action to disable or enable CloudWatch event rules."
 inputs:
   aws-account:
     description: The AWS account to target
@@ -24,12 +24,15 @@ inputs:
     required: false
     default: 'false'
 outputs:
+  api-tf-args:
+    value: ${{ steps.update-tf-args.outputs.api-tf-args }}
+    description: Terraform arguments to ensure the API CloudWatch even rules remain disabled
   drs-tf-args:
     value: ${{ steps.update-tf-args.outputs.drs-tf-args }}
-    description: Terraform arguments to ensure the DRS pollers remains disabled
+    description: Terraform arguments to ensure the DRS CloudWatch event rules remain disabled
   dms-tf-args:
     value: ${{ steps.update-tf-args.outputs.dms-tf-args }}
-    description: Terraform arguments to ensure the DMS task updater remains disabled
+    description: Terraform arguments to ensure the DMS CloudWatch event rules remain disabled
 
 runs:
   using: composite
@@ -54,36 +57,65 @@ runs:
         aws-region: ${{ inputs.aws-region }}
         role-session-name: Terraform-GHA
 
-    - name: Manage Pollers and DMS Task Updater
+    - name: Manage CloudWatch Event Rules
       shell: bash
       run: |
-        IFS=" " read -ra cw_rules <<< "${{ env.DES_GLOBALS_ENV_DMS_CW_RULES }}"
+        IFS=" " read -ra cw_rules <<< "${{ env.DES_GLOBALS_ENV_CW_EVENT_RULES }}"
         for rule in "${cw_rules[@]}"; do
+          action=${{ inputs.action }}
+        
           [[ "$rule" == "dms-task-updater" ]] && component=dms || component=drs
           rule_name=mes-${{ inputs.tf-environment }}-${component}-${rule}
         
-          if [[ "$component" == "dms" && "${{ inputs.personal-environment }}" == "true" ]]; then break; fi
+          if [[ "$component" == "dms" && "${{ inputs.personal-environment }}" == "true" ]]; then continue; fi
         
-          aws events ${{ inputs.action }}-rule --name ${rule_name} --region ${{ inputs.aws-region }}
+          # Check Terraform tfvars for desired state of the rule when enabling
+          if [[ "${{ inputs.action }}" == "enable" ]]; then
+            if [[ "${{ inputs.personal-environment }}" == "true" ]]; then
+              tfvars_file="etc/group_nonprod.tfvars"
+            else
+              tfvars_file="etc/env_${{ inputs.aws-region }}_${{ inputs.tf-environment }}.tfvars"
+            fi
+        
+            tf_cw_state=$(grep "${rule}_cw_event_state" ${tfvars_file} | cut -d '=' -f 2 | sed 's/"//g; s/^ *//')
+        
+            if [[ "$tf_cw_state" == "DISABLED" ]]; then
+              echo "Skipping enabling ${rule_name} as tfvars indicates it should be disabled"
+              continue
+            fi
+        
+            aws events enable-rule --name ${rule_name} --region ${{ inputs.aws-region }}
+          else
+            aws events disable-rule --name ${rule_name} --region ${{ inputs.aws-region }}
+          fi
+
           echo "Successfully performed '${{ inputs.action }}' on rule: ${rule_name}"
         done
 
-    - name: ⚙️ Update tf-args to Prevent Pollers and DMS Task Updater Re-Enabling
+    - name: ⚙️ Update tf-args to Prevent CloudWatch Event Rules Re-Enabling
       id: update-tf-args
       if: ${{ inputs.action == 'disable' }}
       shell: bash
       run: |
+        api_tf_args=""
         drs_tf_args=""
         dms_tf_args=""
         
-        IFS=" " read -ra cw_rules <<< "${{ env.DES_GLOBALS_ENV_DMS_CW_RULES }}"
+        IFS=" " read -ra cw_rules <<< "${{ env.DES_GLOBALS_ENV_CW_EVENT_RULES }}"
         for rule in "${cw_rules[@]}"; do
-          if [[ "$rule" == "dms-task-updater" ]]; then
+          component=$(grep -l 'variable "${rule}_cw_event_state"' components/*/variables.tf | awk -F'/' '{print $2}')
+
+          if [[ "$component" == "api" ]]; then
+            api_tf_args+="-var='${rule//-/_}_cw_event_state=DISABLED' "
+          elif [[ "$component" == "drs" ]]; then
+            drs_tf_args+="-var='${rule//-/_}_cw_event_state=DISABLED' "
+          elif [[ "$component" == "dms" ]]; then
             dms_tf_args+="-var='${rule//-/_}_cw_event_state=DISABLED' "
           else
-            drs_tf_args+="-var='${rule//-/_}_cw_event_state=DISABLED' "
+            echo "Warning: Could not determine component for rule '${rule}'. Skipping tf-args update for this rule."
           fi
         done
         
+        echo "api-tf-args=$api_tf_args" >> $GITHUB_OUTPUT
         echo "drs-tf-args=$drs_tf_args" >> $GITHUB_OUTPUT
         echo "dms-tf-args=$dms_tf_args" >> $GITHUB_OUTPUT
