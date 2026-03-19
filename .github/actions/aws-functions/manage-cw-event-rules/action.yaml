@@ -128,7 +128,7 @@ runs:
           rule_state_tf_var="${rule//-/_}_cw_event_state"
         
           # Determine component from variables.tf file that contains the expected variable
-          matching_rule_file_path=$(grep -l "variable \"${rule_state_tf_var}\"" components/*/variables.tf)
+          matching_rule_file_path=$(grep -l "variable \"${rule_state_tf_var}\"" components/*/variables.tf || true)
           if [[ -n "$matching_rule_file_path" ]]; then
             component=$(echo "$matching_rule_file_path" | awk -F'/' '{print $2}')
           else
