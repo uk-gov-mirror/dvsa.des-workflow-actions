@@ -384,7 +384,7 @@ jobs:
 
   stop-ec2-runner:
     name: ⏹️ Stop EC2 Runner
-    needs: [start-ec2-runner, enable-drs-pollers]
+    needs: [start-ec2-runner, enable-cw-event-rules]
     if: always()
     uses: dvsa/des-workflow-actions/.github/workflows/manage-gha-tf-runner.yaml@main
     with:
