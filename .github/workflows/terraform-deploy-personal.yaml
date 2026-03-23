@@ -31,8 +31,8 @@ on:
         description: DynamoDB Test Data Branch
         type: string
         required: false
-      disable-pollers:
-        description: Whether to disable the pollers before deployment
+      disable-cw-event-rules:
+        description: Whether to disable the events that interact with the databases before deployment
         type: boolean
         default: false
         required: false
@@ -110,18 +110,18 @@ jobs:
           echo "api-second-run-args=$api_second_run_args" >> $GITHUB_OUTPUT
           echo "tf-plan-action=$tf_plan_action" >> $GITHUB_OUTPUT
 
-  disable-drs-pollers:
-    name: ⏹️ Disable DRS Pollers
+  disable-cw-event-rules:
+    name: ⏹️ Disable CloudWatch Event Rules
     needs: [start-ec2-runner, set-tf-args]
-    if: always() && !failure() && !cancelled() && inputs.disable-pollers == true && needs.set-tf-args.outputs.first-run == 'false'
+    if: always() && !failure() && !cancelled() && inputs.disable-cw-event-rules == true && needs.set-tf-args.outputs.first-run == 'false'
     runs-on: ${{ needs.start-ec2-runner.outputs.runner-label }}
     outputs:
-      drs-tf-args: ${{ steps.disable-pollers.outputs.drs-tf-args }}
-      dms-tf-args: ${{ steps.disable-pollers.outputs.dms-tf-args }}
+      drs-tf-args: ${{ steps.disable-cw-event-rules.outputs.drs-tf-args }}
+      dms-tf-args: ${{ steps.disable-cw-event-rules.outputs.dms-tf-args }}
     steps:
-      - name: ⏹️ Disable DRS Pollers
-        id: disable-pollers
-        uses: dvsa/des-workflow-actions/.github/actions/aws-functions/manage-pollers@main
+      - name: ⏹️ Disable CloudWatch Event Rules
+        id: disable-cw-event-rules
+        uses: dvsa/des-workflow-actions/.github/actions/aws-functions/manage-cw-event-rules@main
         with:
           aws-account: ${{ inputs.aws-account }}
           aws-region: ${{ secrets.DVSA_AWS_REGION }}
@@ -131,9 +131,28 @@ jobs:
           role-to-assume: ${{ secrets.DES_AWS_ROLE_NONPROD }}
           personal-environment: true
 
+  clear-s3-bucket-mocks:
+    name: 🗑️ Clear DRS Mock TARS Data Bucket
+    needs: [start-ec2-runner, disable-cw-event-rules]
+    if: always() && !failure() && !cancelled() && inputs.tf-action == 'destroy'
+    runs-on: ${{ needs.start-ec2-runner.outputs.runner-label }}
+    steps:
+      - name: 🔑 Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.DES_AWS_ROLE_NONPROD }}
+          aws-region: ${{ secrets.DVSA_AWS_REGION }}
+          role-session-name: Terraform-GHA
+
+      - name: 🗑️ Clear DRS Mock TARS Data Bucket
+        run: |
+           aws s3api delete-objects --bucket mes-${{ secrets.AWS_NONPROD_ACCOUNT_ID }}-${{ inputs.tf-environment }}-drs-mock-tars-data --delete \
+          "$(aws s3api list-object-versions --bucket mes-${{ secrets.AWS_NONPROD_ACCOUNT_ID }}-${{ inputs.tf-environment }}-drs-mock-tars-data | 
+          jq '.Versions + .DeleteMarkers | {Objects: map({Key, VersionId})}')"
+
   deploy-api:
     name: 🧩 API
-    needs: [start-ec2-runner, set-tf-args, disable-drs-pollers]
+    needs: [start-ec2-runner, set-tf-args, clear-s3-bucket-mocks]
     if: always() && !failure() && !cancelled()
     strategy:
       max-parallel: 1
@@ -153,7 +172,7 @@ jobs:
 
   deploy-dsp:
     name: 🧩 DSP
-    needs: [ start-ec2-runner, set-tf-args, deploy-api ]
+    needs: [start-ec2-runner, set-tf-args, deploy-api]
     if: always() && !failure() && !cancelled()
     strategy:
       max-parallel: 1
@@ -173,7 +192,7 @@ jobs:
 
   deploy-drs:
     name: 🧩 DRS
-    needs: [start-ec2-runner, set-tf-args, deploy-dsp, disable-drs-pollers]
+    needs: [start-ec2-runner, set-tf-args, deploy-dsp, disable-cw-event-rules]
     if: always() && !failure() && !cancelled()
     strategy:
       max-parallel: 1
@@ -186,7 +205,7 @@ jobs:
       aws-account: ${{ inputs.aws-account }}
       tf-environment: ${{ inputs.tf-environment }}
       tf-component: drs
-      tf-args: ${{ needs.disable-drs-pollers.outputs.drs-tf-args || inputs.tf-args }}
+      tf-args: ${{ needs.disable-cw-event-rules.outputs.drs-tf-args || inputs.tf-args }}
       tf-action: ${{ matrix.tf-action }}
       artefact-name-prefix: 2
     secrets: inherit
@@ -272,6 +291,17 @@ jobs:
           db-username: mes${{ inputs.tf-environment }}${{ env.RDS_CREDENTIALS_PERSONAL_DB_USERNAME_SUFFIX }}
           db-password: ${{ env.RDS_CREDENTIALS_RESULTS_DB_PASSWORD }}
 
+      - name: ✨ Create Scheduling Schema and User
+        uses: dvsa/des-workflow-actions/.github/actions/db-functions/run-db-script@main
+        with:
+          db-script-repo: dvsa/des-booking-ingestion-service
+          db-script-branch: main
+          token: ${{ secrets.GH_TOKEN_TEMP }}
+          db-script-path: destination-db/database-objects
+          db-cname: mes-db.api.${{ inputs.tf-environment }}.${{ env.RDS_CREDENTIALS_PERSONAL_DB_CNAME_SUFFIX }}
+          db-username: mes${{ inputs.tf-environment }}${{ env.RDS_CREDENTIALS_PERSONAL_DB_USERNAME_SUFFIX }}
+          db-password: ${{ env.RDS_CREDENTIALS_RESULTS_DB_PASSWORD }}
+
       - name: 🔄 Initialise TARS Replica
         uses: dvsa/des-workflow-actions/.github/actions/db-functions/run-db-script@main
         with:
@@ -335,14 +365,14 @@ jobs:
           python3 ./load_test_user_data.py ${{ inputs.tf-environment }}
           python3 ./load_test_journal_data.py ${{ inputs.tf-environment }}
 
-  enable-drs-pollers:
-    name: ▶️ Enable DRS Pollers
+  enable-cw-event-rules:
+    name: ▶️ Enable CloudWatch Event Rules
     needs: [start-ec2-runner, load-test-data]
-    if: always() && !failure() && !cancelled() && inputs.disable-pollers == true && needs.set-tf-args.outputs.first-run == 'false'
+    if: always() && !failure() && !cancelled() && inputs.disable-cw-event-rules == true && needs.set-tf-args.outputs.first-run == 'false'
     runs-on: ${{ needs.start-ec2-runner.outputs.runner-label }}
     steps:
-      - name: ▶️ Enable DRS Pollers
-        uses: dvsa/des-workflow-actions/.github/actions/aws-functions/manage-pollers@main
+      - name: ▶️ Enable CloudWatch Event Rules
+        uses: dvsa/des-workflow-actions/.github/actions/aws-functions/manage-cw-event-rules@main
         with:
           aws-account: ${{ inputs.aws-account }}
           aws-region: ${{ secrets.DVSA_AWS_REGION }}
