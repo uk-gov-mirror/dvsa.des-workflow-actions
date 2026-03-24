@@ -366,7 +366,7 @@ jobs:
 
       - name: ⏳ Load Tables
         run: |
-          S3_MOCK_DATA_BUCKET="mes-${{ secrets.AWS_NONPROD_ACCOUNT_ID }}-${{ inputs.tf-environment }}-drs-mock-tars-data" >>> $GITHUB_ENV
+          S3_MOCK_DATA_BUCKET="mes-${{ secrets.AWS_NONPROD_ACCOUNT_ID }}-${{ inputs.tf-environment }}-drs-mock-tars-data" >> $GITHUB_ENV
           python3 ./load_test_user_data.py ${{ inputs.tf-environment }}
           python3 ./load_test_journal_data.py ${{ inputs.tf-environment }}
 
