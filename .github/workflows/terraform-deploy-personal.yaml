@@ -146,9 +146,13 @@ jobs:
 
       - name: 🗑️ Clear DRS Mock TARS Data Bucket
         run: |
-           aws s3api delete-objects --bucket mes-${{ secrets.AWS_NONPROD_ACCOUNT_ID }}-${{ inputs.tf-environment }}-drs-mock-tars-data --delete \
-           "$(aws s3api list-object-versions --bucket mes-${{ secrets.AWS_NONPROD_ACCOUNT_ID }}-${{ inputs.tf-environment }}-drs-mock-tars-data | 
-           jq '.Versions + .DeleteMarkers | {Objects: map({Key, VersionId})}')"
+          bucket="mes-${{ secrets.AWS_NONPROD_ACCOUNT_ID }}-${{ inputs.tf-environment }}-drs-mock-tars-data"
+          s3_objects=$(aws s3 ls s3://${bucket})
+          
+          if [[ -n "$s3_objects" ]]; then
+            object_versions=$(aws s3api list-object-versions --bucket ${bucket} | jq '.Versions + .DeleteMarkers | {Objects: map({Key, VersionId})}')
+            aws s3api delete-objects --bucket ${bucket} --delete "${object_versions}"
+          fi
 
   deploy-api:
     name: 🧩 API
