@@ -43,8 +43,8 @@ on:
         description: The version of the microservices to be deployed
         type: string
         required: false
-      disable-pollers:
-        description: Whether to disable the pollers before deployment
+      disable-cw-event-rules:
+        description: Whether to disable the events that interact with the databases before deployment
         type: boolean
         default: false
         required: false
@@ -115,18 +115,18 @@ jobs:
           task-arn: ${{ steps.dms-tasks.outputs.date_filtered_task_arn }}
           aws-region: ${{ secrets.DVSA_AWS_REGION }}
 
-  disable-drs-pollers:
-    name: ⏹️ Disable DRS Pollers
+  disable-cw-event-rules:
+    name: ⏹️ Disable CloudWatch Event Rules
     needs: [start-ec2-runner, stop-dms-tasks]
-    if: always() && !failure() && !cancelled() && inputs.disable-pollers == true
+    if: always() && !failure() && !cancelled() && inputs.disable-cw-event-rules == true
     runs-on: ${{ needs.start-ec2-runner.outputs.runner-label }}
     outputs:
-        drs-tf-args: ${{ steps.disable-pollers.outputs.drs-tf-args }}
-        dms-tf-args: ${{ steps.disable-pollers.outputs.dms-tf-args }}
+        drs-tf-args: ${{ steps.disable-cw-event-rules.outputs.drs-tf-args }}
+        dms-tf-args: ${{ steps.disable-cw-event-rules.outputs.dms-tf-args }}
     steps:
       - name: ⏹️ Disable DRS Pollers
-        id: disable-pollers
-        uses: dvsa/des-workflow-actions/.github/actions/aws-functions/manage-pollers@main
+        id: disable-cw-event-rules
+        uses: dvsa/des-workflow-actions/.github/actions/aws-functions/manage-cw-event-rules@main
         with:
           aws-account: ${{ inputs.aws-account }}
           aws-region: ${{ secrets.DVSA_AWS_REGION }}
@@ -137,7 +137,7 @@ jobs:
 
   deploy-dmsbase:
     name: 🧩 DMSBASE
-    needs: [start-ec2-runner, disable-drs-pollers]
+    needs: [start-ec2-runner, disable-cw-event-rules]
     if: always() && !failure() && !cancelled() && inputs.tf-environment != 'dev' && inputs.dmsbase == true
     strategy:
       max-parallel: 1
@@ -195,7 +195,7 @@ jobs:
 
   deploy-drs:
     name: 🧩 DRS
-    needs: [start-ec2-runner, disable-drs-pollers, deploy-dsp]
+    needs: [start-ec2-runner, disable-cw-event-rules, deploy-dsp]
     if: always() && !failure() && !cancelled() && inputs.drs == true
     strategy:
       max-parallel: 1
@@ -209,7 +209,7 @@ jobs:
       tf-environment: ${{ inputs.tf-environment }}
       tf-component: drs
       release-tag: ${{ inputs.release-tag }}
-      tf-args: ${{ needs.disable-drs-pollers.outputs.drs-tf-args || inputs.tf-args }}
+      tf-args: ${{ needs.disable-cw-event-rules.outputs.drs-tf-args || inputs.tf-args }}
       tf-action: ${{ matrix.tf-action }}
     secrets: inherit
 
@@ -258,7 +258,7 @@ jobs:
 
   deploy-dms:
     name: 🧩 DMS
-    needs: [start-ec2-runner, disable-drs-pollers, create-db-users]
+    needs: [start-ec2-runner, disable-cw-event-rules, create-db-users]
     if: always() && !failure() && !cancelled() && inputs.dms == true
     strategy:
       max-parallel: 1
@@ -272,7 +272,7 @@ jobs:
       tf-environment: ${{ inputs.tf-environment }}
       tf-component: dms
       release-tag: ${{ inputs.release-tag }}
-      tf-args: ${{ needs.disable-drs-pollers.outputs.dms-tf-args || inputs.tf-args }}
+      tf-args: ${{ needs.disable-cw-event-rules.outputs.dms-tf-args || inputs.tf-args }}
       tf-action: ${{ matrix.tf-action }}
     secrets: inherit
 
@@ -288,14 +288,14 @@ jobs:
       db-script-branch: ${{ inputs.tars-replica-db-script-branch }}
     secrets: inherit
 
-  enable-drs-pollers:
-    name: ▶️ Enable DRS Pollers
+  enable-cw-event-rules:
+    name: ▶️ Enable CloudWatch Event Rules
     needs: [start-ec2-runner, full-dms-deploy]
-    if: always() && !failure() && !cancelled() && inputs.disable-pollers == true
+    if: always() && !failure() && !cancelled() && inputs.disable-cw-event-rules == true
     runs-on: ${{ needs.start-ec2-runner.outputs.runner-label }}
     steps:
-      - name: ▶️ Enable DRS Pollers
-        uses: dvsa/des-workflow-actions/.github/actions/aws-functions/manage-pollers@main
+      - name: ▶️ Enable CloudWatch Event Rules
+        uses: dvsa/des-workflow-actions/.github/actions/aws-functions/manage-cw-event-rules@main
         with:
           aws-account: ${{ inputs.aws-account }}
           aws-region: ${{ secrets.DVSA_AWS_REGION }}
@@ -306,7 +306,7 @@ jobs:
 
   stop-ec2-runner:
     name: ⏹️ Stop EC2 Runner
-    needs: [start-ec2-runner, enable-drs-pollers]
+    needs: [start-ec2-runner, enable-cw-event-rules]
     if: always()
     uses: dvsa/des-workflow-actions/.github/workflows/manage-gha-tf-runner.yaml@main
     with:
