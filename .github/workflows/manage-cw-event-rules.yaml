@@ -20,7 +20,7 @@ on:
         required: true
       personal-environment:
         description: Whether the environment is a personal environment
-        type: boolean
+        type: string
         required: true
 
 permissions:
