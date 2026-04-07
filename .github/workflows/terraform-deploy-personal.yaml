@@ -32,7 +32,7 @@ on:
         type: string
         required: false
       disable-cw-event-rules:
-        description: Whether to disable the events that interact with the databases before deployment
+        description: Whether to disable CloudWatch Event Rules during deployment
         type: boolean
         default: false
         required: false
@@ -116,6 +116,7 @@ jobs:
     if: always() && !failure() && !cancelled() && inputs.disable-cw-event-rules == true && needs.set-tf-args.outputs.first-run == 'false'
     runs-on: ${{ needs.start-ec2-runner.outputs.runner-label }}
     outputs:
+      api-tf-args: ${{ steps.disable-cw-event-rules.outputs.api-tf-args }}
       drs-tf-args: ${{ steps.disable-cw-event-rules.outputs.drs-tf-args }}
       dms-tf-args: ${{ steps.disable-cw-event-rules.outputs.dms-tf-args }}
     steps:
@@ -123,6 +124,8 @@ jobs:
         id: disable-cw-event-rules
         uses: dvsa/des-workflow-actions/.github/actions/aws-functions/manage-cw-event-rules@main
         with:
+          branch: ${{ inputs.branch }}
+          token: ${{ secrets.GH_TOKEN_TEMP }}
           aws-account: ${{ inputs.aws-account }}
           aws-region: ${{ secrets.DVSA_AWS_REGION }}
           tf-environment: ${{ inputs.tf-environment }}
@@ -169,7 +172,7 @@ jobs:
       aws-account: ${{ inputs.aws-account }}
       tf-environment: ${{ inputs.tf-environment }}
       tf-component: api
-      tf-args: ${{ needs.set-tf-args.outputs.api-args }}
+      tf-args: ${{ needs.disable-cw-event-rules.outputs.api-tf-args || needs.set-tf-args.outputs.api-args }}
       tf-action: ${{ matrix.tf-action }}
       artefact-name-prefix: 0
     secrets: inherit
@@ -196,7 +199,7 @@ jobs:
 
   deploy-drs:
     name: 🧩 DRS
-    needs: [start-ec2-runner, set-tf-args, deploy-dsp, disable-cw-event-rules]
+    needs: [start-ec2-runner, set-tf-args, disable-cw-event-rules, deploy-dsp]
     if: always() && !failure() && !cancelled()
     strategy:
       max-parallel: 1
@@ -380,6 +383,8 @@ jobs:
       - name: ▶️ Enable CloudWatch Event Rules
         uses: dvsa/des-workflow-actions/.github/actions/aws-functions/manage-cw-event-rules@main
         with:
+          branch: ${{ inputs.branch }}
+          token: ${{ secrets.GH_TOKEN_TEMP }}
           aws-account: ${{ inputs.aws-account }}
           aws-region: ${{ secrets.DVSA_AWS_REGION }}
           tf-environment: ${{ inputs.tf-environment }}
