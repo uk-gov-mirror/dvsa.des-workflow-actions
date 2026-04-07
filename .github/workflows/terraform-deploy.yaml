@@ -128,6 +128,8 @@ jobs:
         id: disable-cw-event-rules
         uses: dvsa/des-workflow-actions/.github/actions/aws-functions/manage-cw-event-rules@main
         with:
+          branch: ${{ inputs.branch }}
+          token: ${{ secrets.GH_TOKEN_TEMP }}
           aws-account: ${{ inputs.aws-account }}
           aws-region: ${{ secrets.DVSA_AWS_REGION }}
           tf-environment: ${{ inputs.tf-environment }}
@@ -297,6 +299,8 @@ jobs:
       - name: ▶️ Enable CloudWatch Event Rules
         uses: dvsa/des-workflow-actions/.github/actions/aws-functions/manage-cw-event-rules@main
         with:
+          branch: ${{ inputs.branch }}
+          token: ${{ secrets.GH_TOKEN_TEMP }}
           aws-account: ${{ inputs.aws-account }}
           aws-region: ${{ secrets.DVSA_AWS_REGION }}
           tf-environment: ${{ inputs.tf-environment }}
