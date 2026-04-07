@@ -1,0 +1,41 @@
+name: ☁️ Manage CloudWatch Event Rules
+on:
+  workflow_call:
+    inputs:
+      branch:
+        description: The Terraform branch to use
+        type: string
+        required: true
+      aws-account:
+        description: The AWS account to deploy to
+        type: string
+        required: true
+      tf-environment:
+        description: The Terraform environment to deploy to
+        type: string
+        required: true
+      action:
+        description: The action to perform on CloudWatch Event Rules
+        type: string
+        required: true
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  disable-cw-event-rules:
+    name: ☁️ Manage CloudWatch Event Rules
+    runs-on: ubuntu-latest
+    steps:
+      - name: "☁️ ${{ inputs.action == 'disable' && 'Disable' || 'Enable' }} CloudWatch Event Rules"
+        uses: dvsa/des-workflow-actions/.github/actions/aws-functions/manage-cw-event-rules@main
+        with:
+          branch: ${{ inputs.branch }}
+          token: ${{ secrets.GH_TOKEN_TEMP }}
+          aws-account: ${{ inputs.aws-account }}
+          aws-region: ${{ secrets.DVSA_AWS_REGION }}
+          tf-environment: ${{ inputs.tf-environment }}
+          action: ${{ inputs.action }}
+          mgmt-role: ${{ secrets.DES_AWS_ROLE }}
+          role-to-assume: ${{ inputs.aws-account == 'prod' && secrets.DES_AWS_ROLE_PROD || secrets.DES_AWS_ROLE_NONPROD }}
