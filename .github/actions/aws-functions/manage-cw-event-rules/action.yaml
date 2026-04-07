@@ -1,5 +1,5 @@
 name: Disable/Enable CloudWatch Event Rules
-description: "Action to disable or enable CloudWatch event rules."
+description: "Action to disable or enable CloudWatch Event Rules."
 inputs:
   branch:
     description: The branch of the Terraform repository
@@ -32,13 +32,13 @@ inputs:
 outputs:
   api-tf-args:
     value: ${{ steps.update-tf-args.outputs.api-tf-args }}
-    description: Terraform arguments to ensure the API CloudWatch even rules remain disabled
+    description: Terraform arguments to ensure the API CloudWatch Event Rules remain disabled
   drs-tf-args:
     value: ${{ steps.update-tf-args.outputs.drs-tf-args }}
-    description: Terraform arguments to ensure the DRS CloudWatch event rules remain disabled
+    description: Terraform arguments to ensure the DRS CloudWatch Event Rules remain disabled
   dms-tf-args:
     value: ${{ steps.update-tf-args.outputs.dms-tf-args }}
-    description: Terraform arguments to ensure the DMS CloudWatch event rules remain disabled
+    description: Terraform arguments to ensure the DMS CloudWatch Event Rules remain disabled
 
 runs:
   using: composite
