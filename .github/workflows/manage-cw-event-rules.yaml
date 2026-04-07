@@ -24,7 +24,7 @@ permissions:
   id-token: write
 
 jobs:
-  disable-cw-event-rules:
+  manage-cw-event-rules:
     name: ☁️ Manage CloudWatch Event Rules
     runs-on: ubuntu-latest
     steps:
