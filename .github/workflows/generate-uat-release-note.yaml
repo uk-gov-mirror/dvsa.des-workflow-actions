@@ -1,0 +1,75 @@
+name: 📝 Generate UAT Release Note
+on:
+  workflow_call:
+    inputs:
+      release-type:
+        type: string
+        required: true
+      release-tag:
+        type: string
+        required: true
+      backend-release-tag:
+        type: string
+        required: true
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  start-ec2-runner:
+    name: ▶️ Start EC2 Runner
+    uses: dvsa/des-workflow-actions/.github/workflows/manage-gha-tf-runner.yaml@main
+    with:
+      action: start
+    secrets:
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_NONPROD_ACCOUNT_ID }}
+      DVSA_AWS_REGION: ${{ secrets.DVSA_AWS_REGION }}
+      GH_TOKEN_TEMP: ${{ secrets.GH_TOKEN_TEMP }}
+
+  generate-uat-release-note:
+    name: 📝 Generate UAT Release Note
+    needs: [start-ec2-runner]
+    runs-on: ${{ needs.start-ec2-runner.outputs.runner-label }}
+    env:
+      GH_TOKEN: ${{ secrets.GH_TOKEN_TEMP }}
+    steps:
+      - name: 📝 Set Release Type Output
+        run: |
+          [ "${{ inputs.release-type }}" == "full" ] && release_type="frontend backend" || release_type=${{ inputs.release-type }}
+          echo "RELEASE_TYPE=$release_type" >> $GITHUB_ENV
+
+      - name: 🧐 Check/Create Parent Pages for the Release Note
+        id: parent-page
+        uses: dvsa/des-workflow-actions/.github/actions/confluence/check_uat_release_parent_pages@main
+        with:
+          release-tag: ${{ inputs.release_tag }}
+          confluence-user: ${{ secrets.CONFLUENCE_USER }}
+          confluence-token: ${{ secrets.CONFLUENCE_TOKEN }}
+
+      - name: 📝 Generate UAT Release Note
+        uses: dvsa/des-workflow-actions/.github/actions/confluence/generate-uat-release-note@main
+        with:
+          release-tag: ${{ inputs.release_tag }}
+          release-type: ${{ env.RELEASE_TYPE }}
+          frontend-release-tag: ${{ inputs.release-tag }}
+          backend-release-tag: ${{ inputs.backend-release-tag || inputs.release-tag }}
+          parent-page-id: ${{ steps.parent-page.outputs.parent-page-id }}
+          des-aws-role: ${{ secrets.DES_AWS_ROLE }}
+          dvsa-aws-region: ${{ secrets.DVSA_AWS_REGION }}
+          confluence-user: ${{ secrets.CONFLUENCE_USER }}
+          confluence-token: ${{ secrets.CONFLUENCE_TOKEN }}
+
+  stop-ec2-runner:
+    name: ⏹️ Stop EC2 Runner
+    needs: [start-ec2-runner, generate-uat-release-note]
+    if: always()
+    uses: dvsa/des-workflow-actions/.github/workflows/manage-gha-tf-runner.yaml@main
+    with:
+      action: stop
+      runner-label: ${{ needs.start-ec2-runner.outputs.runner-label }}
+      ec2-instance-id: ${{ needs.start-ec2-runner.outputs.ec2-instance-id }}
+    secrets:
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_NONPROD_ACCOUNT_ID }}
+      DVSA_AWS_REGION: ${{ secrets.DVSA_AWS_REGION }}
+      GH_TOKEN_TEMP: ${{ secrets.GH_TOKEN_TEMP }}
