@@ -43,14 +43,14 @@ jobs:
         id: parent-page
         uses: dvsa/des-workflow-actions/.github/actions/confluence/check_uat_release_parent_pages@main
         with:
-          release-tag: ${{ inputs.release_tag }}
+          release-tag: ${{ inputs.release-tag }}
           confluence-user: ${{ secrets.CONFLUENCE_USER }}
           confluence-token: ${{ secrets.CONFLUENCE_TOKEN }}
 
       - name: 📝 Generate UAT Release Note
         uses: dvsa/des-workflow-actions/.github/actions/confluence/generate-uat-release-note@main
         with:
-          release-tag: ${{ inputs.release_tag }}
+          release-tag: ${{ inputs.release-tag }}
           release-type: ${{ env.RELEASE_TYPE }}
           frontend-release-tag: ${{ inputs.release-tag }}
           backend-release-tag: ${{ inputs.backend-release-tag || inputs.release-tag }}
