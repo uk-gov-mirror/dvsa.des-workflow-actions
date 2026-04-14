@@ -353,7 +353,7 @@ jobs:
 
   enable-cw-event-rules:
     name: ▶️ Enable CloudWatch Event Rules
-    needs: [start-ec2-runner, load-test-data]
+    needs: [start-ec2-runner, load-mock-data]
     if: always() && !failure() && !cancelled() && inputs.disable-cw-event-rules == true && needs.set-tf-args.outputs.first-run == 'false'
     runs-on: ${{ needs.start-ec2-runner.outputs.runner-label }}
     steps:
