@@ -346,6 +346,8 @@ jobs:
     needs: [start-ec2-runner, initialise-results-db]
     if: always() && !failure() && !cancelled() && inputs.load-dynamodb-test-data == true && inputs.tf-action == 'apply'
     uses: dvsa/des-test-data-journal/.github/workflows/upload-mock-data.yaml@develop
+    with:
+      environment: ${{ inputs.tf-environment }}
     secrets:
       DES_TEST_DATA_TOKEN: ${{ secrets.GH_TOKEN_TEMP }}
       DVSA_AWS_REGION: ${{ secrets.DVSA_AWS_REGION }}
