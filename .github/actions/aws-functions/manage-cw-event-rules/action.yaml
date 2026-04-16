@@ -96,9 +96,8 @@ runs:
           # Check Terraform tfvars for desired state of the rule when enabling
           if [[ "${{ inputs.action }}" == "enable" ]]; then
             tfvars_file="etc/env_${{ inputs.aws-region }}_${{ inputs.tf-environment }}.tfvars"
-            
             tfvars_state=$(grep "${rule_state_tf_var}" ${tfvars_file} || true)
-            [[ -n "$tfvars_state" ]] && desired_rule_state=$(echo "$tfvars_state" | cut -d '=' -f 2 | sed 's/"//g; s/^ *//')
+            desired_rule_state=$(echo "$tfvars_state" | cut -d '=' -f 2 | sed 's/"//g; s/^ *//')
                         
             # The ${rule_state_tf_var} default value is ENABLED, so only skip enabling if tfvars explicitly indicates DISABLED
             if [[ "$desired_rule_state" == "DISABLED" ]]; then
