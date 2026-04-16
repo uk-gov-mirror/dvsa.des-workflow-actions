@@ -121,6 +121,7 @@ jobs:
     if: always() && !failure() && !cancelled() && inputs.disable-cw-event-rules == true
     runs-on: ${{ needs.start-ec2-runner.outputs.runner-label }}
     outputs:
+        api-tf-args: ${{ steps.disable-cw-event-rules.outputs.api-tf-args }}
         drs-tf-args: ${{ steps.disable-cw-event-rules.outputs.drs-tf-args }}
         dms-tf-args: ${{ steps.disable-cw-event-rules.outputs.dms-tf-args }}
     steps:
@@ -157,7 +158,7 @@ jobs:
 
   deploy-api:
     name: 🧩 API
-    needs: [start-ec2-runner, deploy-dmsbase]
+    needs: [start-ec2-runner, disable-cw-event-rules, deploy-dmsbase]
     if: always() && !failure() && !cancelled() && inputs.api == true
     strategy:
       max-parallel: 1
@@ -171,7 +172,7 @@ jobs:
       tf-environment: ${{ inputs.tf-environment }}
       tf-component: api
       release-tag: ${{ inputs.release-tag }}
-      tf-args: ${{ inputs.tf-args }}
+      tf-args: ${{ needs.disable-cw-event-rules.outputs.api-tf-args || inputs.tf-args }}
       tf-action: ${{ matrix.tf-action }}
     secrets: inherit
 
